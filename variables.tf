@@ -29,6 +29,18 @@ variable "create" {
   default     = true
 }
 
+variable "enforce_security_baseline" {
+  description = "Whether to reject deployments without explicit VPC networking, encryption, and supported authentication controls. Global secondaries may inherit encryption and authentication from the primary."
+  type        = bool
+  default     = false
+}
+
+variable "enforce_resilience_baseline" {
+  description = "Whether to require resilient topology and backups appropriate to the selected deployment type."
+  type        = bool
+  default     = false
+}
+
 variable "region" {
   description = "Optional AWS Region for module-managed resources. Null uses the Region configured on the AWS provider."
   type        = string
@@ -62,6 +74,11 @@ variable "description" {
   description = "Description for a replication group or serverless cache."
   type        = string
   default     = "Managed by Terraform"
+
+  validation {
+    condition     = var.description != null && trimspace(var.description) != ""
+    error_message = "description must not be empty."
+  }
 }
 
 variable "node_type" {
@@ -97,6 +114,14 @@ variable "maintenance_window" {
   description = "Weekly maintenance window for a provisioned cluster or replication group, in UTC ddd:hh24:mi-ddd:hh24:mi format."
   type        = string
   default     = null
+
+  validation {
+    condition = var.maintenance_window == null || can(regex(
+      "^(mon|tue|wed|thu|fri|sat|sun):([01][0-9]|2[0-3]):[0-5][0-9]-(mon|tue|wed|thu|fri|sat|sun):([01][0-9]|2[0-3]):[0-5][0-9]$",
+      var.maintenance_window
+    ))
+    error_message = "maintenance_window must use the UTC format ddd:hh:mm-ddd:hh:mm."
+  }
 }
 
 variable "network_type" {
@@ -125,12 +150,22 @@ variable "security_group_ids" {
   description = "VPC security group IDs associated with the selected cache deployment."
   type        = set(string)
   default     = []
+
+  validation {
+    condition     = alltrue([for security_group_id in var.security_group_ids : security_group_id != null && trimspace(security_group_id) != ""])
+    error_message = "security_group_ids must contain only non-empty security group IDs."
+  }
 }
 
 variable "security_group_names" {
   description = "Legacy cache security group names associated with a replication group. Prefer security_group_ids for VPC deployments."
   type        = set(string)
   default     = []
+
+  validation {
+    condition     = alltrue([for security_group_name in var.security_group_names : security_group_name != null && trimspace(security_group_name) != ""])
+    error_message = "security_group_names must contain only non-empty security group names."
+  }
 }
 
 variable "notification_topic_arn" {
@@ -143,18 +178,33 @@ variable "final_snapshot_identifier" {
   description = "Final snapshot identifier for a Redis OSS cluster or Redis OSS/Valkey replication group. Null skips a final snapshot."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.final_snapshot_identifier == null || trimspace(var.final_snapshot_identifier) != ""
+    error_message = "final_snapshot_identifier must be null or a non-empty identifier."
+  }
 }
 
 variable "snapshot_arns" {
   description = "Redis RDB snapshot ARNs used to restore a provisioned cluster or replication group. Clusters accept one ARN."
   type        = list(string)
   default     = []
+
+  validation {
+    condition     = alltrue([for snapshot_arn in var.snapshot_arns : snapshot_arn != null && trimspace(snapshot_arn) != ""])
+    error_message = "snapshot_arns must contain only non-empty ARNs."
+  }
 }
 
 variable "snapshot_name" {
   description = "Snapshot name from which to restore a provisioned cluster or replication group."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.snapshot_name == null || trimspace(var.snapshot_name) != ""
+    error_message = "snapshot_name must be null or a non-empty name."
+  }
 }
 
 variable "snapshot_retention_limit" {
@@ -163,8 +213,8 @@ variable "snapshot_retention_limit" {
   default     = null
 
   validation {
-    condition     = var.snapshot_retention_limit == null || (floor(var.snapshot_retention_limit) == var.snapshot_retention_limit && var.snapshot_retention_limit >= 0)
-    error_message = "snapshot_retention_limit must be a non-negative integer or null."
+    condition     = var.snapshot_retention_limit == null || (floor(var.snapshot_retention_limit) == var.snapshot_retention_limit && var.snapshot_retention_limit >= 0 && var.snapshot_retention_limit <= 35)
+    error_message = "snapshot_retention_limit must be an integer from 0 to 35 or null."
   }
 }
 
@@ -172,6 +222,14 @@ variable "snapshot_window" {
   description = "Daily UTC snapshot window for a provisioned cluster or replication group."
   type        = string
   default     = null
+
+  validation {
+    condition = var.snapshot_window == null || can(regex(
+      "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$",
+      var.snapshot_window
+    ))
+    error_message = "snapshot_window must use the UTC format hh:mm-hh:mm."
+  }
 }
 
 variable "log_delivery_configuration" {
@@ -190,6 +248,7 @@ variable "log_delivery_configuration" {
       length(distinct([for configuration in var.log_delivery_configuration : configuration.log_type])) == length(var.log_delivery_configuration) &&
       alltrue([
         for configuration in var.log_delivery_configuration :
+        configuration.destination != null && trimspace(configuration.destination) != "" &&
         contains(["cloudwatch-logs", "kinesis-firehose"], configuration.destination_type) &&
         contains(["json", "text"], configuration.log_format) &&
         contains(["engine-log", "slow-log"], configuration.log_type)
@@ -355,6 +414,11 @@ variable "global_replication_group_id" {
   description = "Global replication group ID to join as a secondary replication group. Engine and node settings are inherited when set."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.global_replication_group_id == null || trimspace(var.global_replication_group_id) != ""
+    error_message = "global_replication_group_id must be null or a non-empty ID."
+  }
 }
 
 variable "create_global_replication_group" {
@@ -390,10 +454,15 @@ variable "global_replication_group_description" {
   description = "Description for the module-created global replication group."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.global_replication_group_description == null || trimspace(var.global_replication_group_description) != ""
+    error_message = "global_replication_group_description must be null or non-empty."
+  }
 }
 
 variable "global_automatic_failover_enabled" {
-  description = "Automatic failover setting for the global replication group. Null inherits automatic_failover_enabled."
+  description = "Intra-Region automatic failover setting applied to global datastore members. Null inherits automatic_failover_enabled. This does not provide automatic cross-Region failover."
   type        = bool
   default     = null
 }
@@ -446,6 +515,14 @@ variable "global_replication_group_timeouts" {
     delete = optional(string)
   })
   default = null
+
+  validation {
+    condition = var.global_replication_group_timeouts == null || alltrue([
+      for timeout in values(var.global_replication_group_timeouts) :
+      timeout == null || can(regex("^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$", timeout))
+    ])
+    error_message = "global_replication_group_timeouts values must be valid Terraform duration strings such as 30m or 1h30m."
+  }
 }
 
 variable "num_cache_clusters" {
@@ -526,8 +603,8 @@ variable "user_group_ids" {
   default     = []
 
   validation {
-    condition     = length(var.user_group_ids) <= 1
-    error_message = "user_group_ids supports at most one user group ID."
+    condition     = length(var.user_group_ids) <= 1 && alltrue([for user_group_id in var.user_group_ids : user_group_id != null && trimspace(user_group_id) != ""])
+    error_message = "user_group_ids supports at most one non-empty user group ID."
   }
 }
 
@@ -574,18 +651,33 @@ variable "daily_snapshot_time" {
   description = "Daily UTC snapshot time for a Redis OSS or Valkey serverless cache."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.daily_snapshot_time == null || can(regex("^([01][0-9]|2[0-3]):[0-5][0-9]$", var.daily_snapshot_time))
+    error_message = "daily_snapshot_time must use the UTC format hh:mm."
+  }
 }
 
 variable "snapshot_arns_to_restore" {
   description = "Snapshot ARNs from which to restore a Redis OSS or Valkey serverless cache."
   type        = list(string)
   default     = []
+
+  validation {
+    condition     = alltrue([for snapshot_arn in var.snapshot_arns_to_restore : snapshot_arn != null && trimspace(snapshot_arn) != ""])
+    error_message = "snapshot_arns_to_restore must contain only non-empty ARNs."
+  }
 }
 
 variable "user_group_id" {
   description = "Redis OSS/Valkey user group ID associated with a serverless cache."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.user_group_id == null || trimspace(var.user_group_id) != ""
+    error_message = "user_group_id must be null or a non-empty ID."
+  }
 }
 
 variable "create_parameter_group" {
@@ -656,7 +748,7 @@ variable "subnet_ids" {
   default     = []
 
   validation {
-    condition     = alltrue([for subnet_id in var.subnet_ids : trimspace(subnet_id) != ""])
+    condition     = alltrue([for subnet_id in var.subnet_ids : subnet_id != null && trimspace(subnet_id) != ""])
     error_message = "subnet_ids must contain only non-empty subnet IDs."
   }
 }
@@ -675,6 +767,14 @@ variable "timeouts" {
     delete = optional(string)
   })
   default = null
+
+  validation {
+    condition = var.timeouts == null || alltrue([
+      for timeout in values(var.timeouts) :
+      timeout == null || can(regex("^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$", timeout))
+    ])
+    error_message = "timeouts values must be valid Terraform duration strings such as 30m or 1h30m."
+  }
 }
 
 variable "tags" {

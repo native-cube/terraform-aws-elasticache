@@ -36,6 +36,19 @@ variable "node_type" {
   default     = "cache.r7g.large"
 }
 
+variable "auth_token_wo" {
+  description = "Write-only AUTH token for the global datastore. Provide it through an ephemeral environment or secret source."
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "auth_token_wo_version" {
+  description = "Version for auth_token_wo. Increment to rotate the global datastore AUTH token."
+  type        = number
+  default     = 1
+}
+
 variable "primary_subnet_ids" {
   description = "Existing private subnet IDs in primary_region."
   type        = set(string)

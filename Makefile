@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 EXAMPLES := $(wildcard examples/*)
 
-.PHONY: help fmt fmt-check docs docs-check init validate test schema-check lint security examples-init examples-validate check release-check hooks
+.PHONY: help fmt fmt-check docs docs-check init validate test schema-check lint workflow-lint shell-lint security examples-init examples-validate check release-check hooks
 
 help:
 	@echo "Available targets:"
@@ -15,6 +15,8 @@ help:
 	@echo "  make test               Run native Terraform tests"
 	@echo "  make schema-check       Verify all provider resource arguments are wired"
 	@echo "  make lint               Run TFLint with the Terraform and AWS rulesets"
+	@echo "  make workflow-lint      Run actionlint against GitHub Actions workflows"
+	@echo "  make shell-lint         Run ShellCheck against repository shell scripts"
 	@echo "  make security           Scan Terraform configuration with Trivy"
 	@echo "  make examples-init      Initialize all examples"
 	@echo "  make examples-validate  Validate all examples"
@@ -50,6 +52,12 @@ lint:
 	tflint --init
 	tflint --recursive --format compact --config "$(CURDIR)/.tflint.hcl"
 
+workflow-lint:
+	actionlint
+
+shell-lint:
+	shellcheck scripts/*.sh .githooks/pre-commit
+
 security:
 	trivy config --severity HIGH,CRITICAL --exit-code 1 --skip-dirs .terraform .
 
@@ -72,7 +80,7 @@ examples-validate:
 check: fmt-check docs-check init validate test schema-check examples-init examples-validate
 	git diff --check
 
-release-check: check lint security
+release-check: check lint workflow-lint shell-lint security
 	git diff --check
 
 hooks:

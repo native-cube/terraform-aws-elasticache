@@ -19,10 +19,20 @@ permissions:
 
 jobs:
   quality:
-    name: Formatting, docs, lint, and security
+    name: Formatting, docs, and lint
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate release tag
+        if: github.ref_type == 'tag'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "${RELEASE_TAG}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Release tag must be unprefixed Semantic Versioning, for example 1.2.3 or 1.2.3-rc.1" >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v6.0.3
 
@@ -39,6 +49,14 @@ jobs:
           curl -sSLo /tmp/terraform-docs.tar.gz "https://github.com/terraform-docs/terraform-docs/releases/download/v${TERRAFORM_DOCS_VERSION}/terraform-docs-v${TERRAFORM_DOCS_VERSION}-linux-amd64.tar.gz"
           tar -xzf /tmp/terraform-docs.tar.gz -C /tmp terraform-docs
           sudo install -m 0755 /tmp/terraform-docs /usr/local/bin/terraform-docs
+
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          curl -sSLo /tmp/actionlint.tar.gz "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          sudo install -m 0755 /tmp/actionlint /usr/local/bin/actionlint
 
       - name: Terraform fmt
         run: terraform fmt -check -recursive
@@ -60,16 +78,11 @@ jobs:
       - name: Run TFLint
         run: tflint --recursive --format compact --config "${GITHUB_WORKSPACE}/.tflint.hcl"
 
-      - name: Scan Terraform configuration
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: config
-          scan-ref: .
-          version: v0.74.0
-          hide-progress: true
-          exit-code: 1
-          severity: HIGH,CRITICAL
-          skip-dirs: .terraform
+      - name: Lint GitHub Actions workflows
+        run: actionlint
+
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh .githooks/pre-commit
 
   compatibility:
     name: Terraform ${{ matrix.terraform }} / AWS provider ${{ matrix.provider }}
@@ -81,7 +94,7 @@ jobs:
         include:
           - terraform: 1.11.4
             provider: 6.62.0
-            run_tests: false
+            run_tests: true
           - terraform: 1.16.0
             provider: latest-v6
             run_tests: true

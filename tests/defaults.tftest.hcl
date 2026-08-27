@@ -28,14 +28,17 @@ run "memcached_cluster" {
   command = plan
 
   variables {
-    name                       = "unit-memcached"
-    deployment_type            = "cluster"
-    engine                     = "memcached"
-    engine_version             = "1.6.22"
-    node_type                  = "cache.t4g.small"
-    num_cache_nodes            = 2
-    port                       = 11211
-    transit_encryption_enabled = true
+    name                        = "unit-memcached"
+    deployment_type             = "cluster"
+    engine                      = "memcached"
+    engine_version              = "1.6.22"
+    node_type                   = "cache.t4g.small"
+    num_cache_nodes             = 2
+    az_mode                     = "cross-az"
+    port                        = 11211
+    transit_encryption_enabled  = true
+    enforce_security_baseline   = true
+    enforce_resilience_baseline = true
 
     create_parameter_group = true
     parameter_group_family = "memcached1.6"
@@ -120,13 +123,16 @@ run "valkey_serverless" {
   command = plan
 
   variables {
-    name                     = "unit-valkey-serverless"
-    deployment_type          = "serverless"
-    engine                   = "valkey"
-    major_engine_version     = "8"
-    subnet_ids               = ["subnet-0123456789abcdef0"]
-    security_group_ids       = ["sg-0123456789abcdef0"]
-    snapshot_retention_limit = 7
+    name                        = "unit-valkey-serverless"
+    deployment_type             = "serverless"
+    engine                      = "valkey"
+    major_engine_version        = "8"
+    subnet_ids                  = ["subnet-0123456789abcdef0"]
+    security_group_ids          = ["sg-0123456789abcdef0"]
+    snapshot_retention_limit    = 7
+    user_group_id               = "unit-valkey-users"
+    enforce_security_baseline   = true
+    enforce_resilience_baseline = true
     cache_usage_limits = {
       data_storage = {
         minimum = 1

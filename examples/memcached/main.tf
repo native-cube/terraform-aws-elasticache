@@ -16,13 +16,16 @@ provider "aws" {
 module "memcached" {
   source = "../.."
 
-  name            = var.name
-  deployment_type = "cluster"
-  engine          = "memcached"
-  engine_version  = var.engine_version
-  node_type       = var.node_type
-  num_cache_nodes = 2
-  port            = 11211
+  name                        = var.name
+  deployment_type             = "cluster"
+  enforce_security_baseline   = true
+  enforce_resilience_baseline = true
+  engine                      = "memcached"
+  engine_version              = var.engine_version
+  node_type                   = var.node_type
+  num_cache_nodes             = 2
+  az_mode                     = "cross-az"
+  port                        = 11211
 
   transit_encryption_enabled = true
 

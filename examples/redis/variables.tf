@@ -37,6 +37,16 @@ variable "security_group_ids" {
   type        = set(string)
 }
 
+variable "user_group_ids" {
+  description = "Existing Redis OSS RBAC user group ID. Supply exactly one user group configured for password or IAM authentication."
+  type        = set(string)
+
+  validation {
+    condition     = length(var.user_group_ids) == 1
+    error_message = "user_group_ids must contain exactly one Redis OSS user group ID."
+  }
+}
+
 variable "tags" {
   description = "Tags applied to example resources."
   type        = map(string)

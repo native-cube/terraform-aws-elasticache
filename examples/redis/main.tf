@@ -16,13 +16,15 @@ provider "aws" {
 module "redis" {
   source = "../.."
 
-  name            = var.name
-  deployment_type = "replication_group"
-  description     = "Redis OSS replication group example"
-  engine          = "redis"
-  engine_version  = var.engine_version
-  node_type       = var.node_type
-  port            = 6379
+  name                        = var.name
+  deployment_type             = "replication_group"
+  enforce_security_baseline   = true
+  enforce_resilience_baseline = true
+  description                 = "Redis OSS replication group example"
+  engine                      = "redis"
+  engine_version              = var.engine_version
+  node_type                   = var.node_type
+  port                        = 6379
 
   num_cache_clusters         = 2
   automatic_failover_enabled = true
@@ -31,6 +33,8 @@ module "redis" {
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
   snapshot_retention_limit   = 7
+  final_snapshot_identifier  = "${var.name}-final"
+  user_group_ids             = var.user_group_ids
 
   create_parameter_group = true
   parameter_group_family = var.parameter_group_family

@@ -16,15 +16,18 @@ provider "aws" {
 module "valkey" {
   source = "../.."
 
-  name                 = var.name
-  deployment_type      = "serverless"
-  description          = "Valkey serverless cache example"
-  engine               = "valkey"
-  major_engine_version = var.major_engine_version
+  name                        = var.name
+  deployment_type             = "serverless"
+  enforce_security_baseline   = true
+  enforce_resilience_baseline = true
+  description                 = "Valkey serverless cache example"
+  engine                      = "valkey"
+  major_engine_version        = var.major_engine_version
 
   subnet_ids               = var.subnet_ids
   security_group_ids       = var.security_group_ids
   snapshot_retention_limit = 7
+  user_group_id            = var.user_group_id
 
   cache_usage_limits = {
     data_storage = {

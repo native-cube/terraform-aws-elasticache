@@ -1,5 +1,7 @@
 # Terraform AWS ElastiCache Module
 
+[![Terraform Checks](https://github.com/native-cube/terraform-aws-elasticache/actions/workflows/terraform-pr.yml/badge.svg)](https://github.com/native-cube/terraform-aws-elasticache/actions/workflows/terraform-pr.yml)
+
 Reusable Terraform module for one Amazon ElastiCache deployment per module call. It follows the same conventions as the sibling Amazon MQ and S3 modules: flat documented inputs, a selected singleton primary resource named `main`, optional module-managed supporting resources, common tags, singular composition outputs, native tests, separate examples, and generated documentation.
 
 ## Deployment types
@@ -20,7 +22,8 @@ For a Redis OSS or Valkey global datastore, set `create_global_replication_group
 
 ```hcl
 module "cache" {
-  source = "./terraform-aws-elasticache"
+  source  = "native-cube/elasticache/aws"
+  version = "~> 1.0"
 
   name            = "orders-valkey"
   deployment_type = "replication_group"
@@ -56,6 +59,12 @@ module "cache" {
 }
 ```
 
+## Compatibility and versioning
+
+Version 1.x requires Terraform 1.11.4 or newer and HashiCorp AWS provider 6.62 or newer within major version 6. The minimum and latest supported combinations are exercised separately in CI.
+
+This module follows Semantic Versioning and uses unprefixed release tags such as `1.0.0`. Pin a compatible module version in production and review [CHANGELOG.md](CHANGELOG.md) before upgrading. Major releases may contain breaking changes; minor and patch releases preserve the documented 1.x interface.
+
 The module adds `terraform-module = "elasticache"` and `elasticache-cache = var.name` to module-created resources. Caller tags with those keys are intentionally replaced so module ownership remains identifiable. Parameter-group and subnet-group-specific tags are merged on top.
 
 ## Parameter and subnet groups
@@ -71,6 +80,31 @@ The module does not create VPCs, subnets, security groups, KMS keys, CloudWatch 
 For Redis OSS or Valkey AUTH, prefer `auth_token_wo`. It is a sensitive ephemeral input backed by the provider's write-only argument, so the token is not persisted in Terraform plan or state. Set `auth_token_wo_version` and increment it whenever the token changes. The legacy `auth_token` input remains available but is stored in state.
 
 AUTH requires in-transit encryption and conflicts with `user_group_ids`. A customer-managed replication-group KMS key requires at-rest encryption. The module validates these relationships before apply.
+
+Prefer ElastiCache RBAC over a shared AUTH token when applications need separate identities or least-privilege access strings. Pass one existing user group through `user_group_ids` for a provisioned replication group or `user_group_id` for a serverless cache. ElastiCache IAM authentication can be configured on users in that external group; the caller remains responsible for IAM policies, short-lived connection tokens, and client support.
+
+## Opt-in hardening profiles
+
+The module preserves compatibility by default. Enable either profile to turn common production controls into plan-time requirements:
+
+| Input | Enforced controls |
+| --- | --- |
+| `enforce_security_baseline = true` | Explicit engine versions and VPC networking; TLS for provisioned caches; at-rest encryption plus AUTH or RBAC for replication-group primaries; RBAC for Redis OSS/Valkey serverless caches. |
+| `enforce_resilience_baseline = true` | Cross-AZ Memcached nodes; replication-group replicas, automatic failover, Multi-AZ, automatic snapshot retention, and a final snapshot; retained snapshots for Redis OSS/Valkey serverless caches. |
+
+Read-replica clusters and global datastore secondaries inherit some controls from their source. The profiles account for those inherited settings but still require regional networking and, for secondaries, explicit snapshot protection. Serverless encryption at rest and in transit and Multi-AZ placement are service-managed.
+
+The module also rejects invalid global-datastore combinations even when profiles are disabled: IPv6/dual-stack networking, Valkey durability, and automatic minor-version upgrades. A global datastore improves cross-Region recovery but does not perform automatic cross-Region failover; `global_automatic_failover_enabled` controls failover within member Regions.
+
+## Production operations
+
+- Use private subnets and security groups scoped to known application security groups or CIDRs. Do not expose cache ports broadly.
+- Send engine and slow logs to pre-created CloudWatch Logs or Firehose destinations where the selected engine supports them. Add CloudWatch alarms for CPU/ECPU, memory pressure, evictions, replication lag, connection saturation, swap, and error events; alarm ownership remains outside this module.
+- Set maintenance and snapshot windows deliberately, subscribe an SNS topic for ElastiCache events, and review service updates before maintenance deadlines.
+- Treat snapshots as recovery controls, not availability controls. Test restores regularly, set retention to match recovery requirements, and use a customer-managed KMS key where key ownership is required. Final snapshots and manually created test snapshots are not tracked by Terraform after resource deletion.
+- Exercise regional failover and, for global datastores, document the separate cross-Region promotion and application DNS/configuration procedure. Confirm engine versions, node types, quotas, and parameter groups are available in every target Region before rollout.
+- Rotate write-only AUTH tokens by changing `auth_token_wo`, incrementing `auth_token_wo_version`, and choosing the intended `auth_token_update_strategy`. Never output tokens or commit them to variable files.
+- Use `prevent_destroy` in a caller wrapper or policy-as-code when accidental deletion protection is required. This module does not set it because doing so would make reusable module teardown impossible without a stateful lifecycle override.
 
 ## Provider argument coverage
 
@@ -92,11 +126,11 @@ Every configurable argument and nested block in AWS provider 6.62.0 is wired for
 - `examples/valkey` - Valkey serverless cache with bounded storage and ECPU usage.
 - `examples/global-replication-group` - encrypted Redis OSS global datastore spanning primary and secondary Regions.
 
-Examples require existing private subnet and security group IDs. Engine versions are required inputs so upgrades and regional availability are reviewed rather than silently assumed.
+Examples require existing private subnet and security group IDs. The Redis OSS and Valkey examples also require existing RBAC user groups, and the global example requires an ephemeral write-only AUTH token. Engine versions are required inputs so upgrades and regional availability are reviewed rather than silently assumed. Every example enables both hardening profiles.
 
 ## Development
 
-Run `make check` to verify formatting, generated documentation, initialization, native mocked plans, provider argument coverage, and every example. Run `make lint` and `make security` for TFLint and Trivy checks. Run `make docs` after changing resources, inputs, outputs, or version constraints.
+Run `make check` to verify formatting, generated documentation, initialization, native mocked plans, provider argument coverage, and every example. Run `make docs` after changing resources, inputs, outputs, or version constraints. `make release-check` additionally runs TFLint, actionlint, ShellCheck, and the local Trivy configuration scan; the GitHub Actions pipeline does not install or run the Trivy CLI. See [RELEASING.md](RELEASING.md) for the maintainer checklist.
 
 ## Module documentation
 
@@ -151,10 +185,12 @@ Run `make check` to verify formatting, generated documentation, initialization, 
 | <a name="input_deployment_type"></a> [deployment\_type](#input\_deployment\_type) | ElastiCache deployment to create: cluster, replication\_group, or serverless. Use separate module calls for multiple independent deployments. | `string` | n/a | yes |
 | <a name="input_description"></a> [description](#input\_description) | Description for a replication group or serverless cache. | `string` | `"Managed by Terraform"` | no |
 | <a name="input_durability"></a> [durability](#input\_durability) | Valkey replication-group durability mode: default, async, sync, or disabled. Requires cluster mode and a supported Valkey version. | `string` | `null` | no |
+| <a name="input_enforce_resilience_baseline"></a> [enforce\_resilience\_baseline](#input\_enforce\_resilience\_baseline) | Whether to require resilient topology and backups appropriate to the selected deployment type. | `bool` | `false` | no |
+| <a name="input_enforce_security_baseline"></a> [enforce\_security\_baseline](#input\_enforce\_security\_baseline) | Whether to reject deployments without explicit VPC networking, encryption, and supported authentication controls. Global secondaries may inherit encryption and authentication from the primary. | `bool` | `false` | no |
 | <a name="input_engine"></a> [engine](#input\_engine) | Cache engine. Clusters support memcached or redis, replication groups support redis or valkey, and serverless supports all three. May be omitted for inherited replication-group resources. | `string` | `null` | no |
 | <a name="input_engine_version"></a> [engine\_version](#input\_engine\_version) | Engine version for a provisioned cluster or replication group. Specify explicitly in production so upgrades are deliberate. | `string` | `null` | no |
 | <a name="input_final_snapshot_identifier"></a> [final\_snapshot\_identifier](#input\_final\_snapshot\_identifier) | Final snapshot identifier for a Redis OSS cluster or Redis OSS/Valkey replication group. Null skips a final snapshot. | `string` | `null` | no |
-| <a name="input_global_automatic_failover_enabled"></a> [global\_automatic\_failover\_enabled](#input\_global\_automatic\_failover\_enabled) | Automatic failover setting for the global replication group. Null inherits automatic\_failover\_enabled. | `bool` | `null` | no |
+| <a name="input_global_automatic_failover_enabled"></a> [global\_automatic\_failover\_enabled](#input\_global\_automatic\_failover\_enabled) | Intra-Region automatic failover setting applied to global datastore members. Null inherits automatic\_failover\_enabled. This does not provide automatic cross-Region failover. | `bool` | `null` | no |
 | <a name="input_global_cache_node_type"></a> [global\_cache\_node\_type](#input\_global\_cache\_node\_type) | Cache node type applied across the global replication group. Null inherits node\_type from the primary replication group. | `string` | `null` | no |
 | <a name="input_global_engine"></a> [global\_engine](#input\_global\_engine) | Engine applied across the global replication group: redis or valkey. Null inherits engine from the primary replication group. | `string` | `null` | no |
 | <a name="input_global_engine_version"></a> [global\_engine\_version](#input\_global\_engine\_version) | Engine version applied across the global replication group. Null inherits engine\_version from the primary replication group. | `string` | `null` | no |

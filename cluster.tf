@@ -94,6 +94,22 @@ resource "aws_elasticache_cluster" "main" {
     }
 
     precondition {
+      condition = local.engine != "memcached" || (
+        var.final_snapshot_identifier == null &&
+        length(var.snapshot_arns) == 0 &&
+        var.snapshot_name == null &&
+        var.snapshot_retention_limit == null &&
+        var.snapshot_window == null
+      )
+      error_message = "Provisioned Memcached clusters do not support snapshots; use serverless Memcached when backups are required."
+    }
+
+    precondition {
+      condition     = local.engine != "memcached" || length(var.log_delivery_configuration) == 0
+      error_message = "Provisioned Memcached clusters do not support ElastiCache log delivery."
+    }
+
+    precondition {
       condition = !local.cluster_read_replica || (
         var.engine == null &&
         var.node_type == null &&
@@ -102,6 +118,29 @@ resource "aws_elasticache_cluster" "main" {
         !var.create_parameter_group
       )
       error_message = "A read-replica cluster inherits engine, node type, node count, and parameter group settings from cluster_replication_group_id."
+    }
+
+    precondition {
+      condition = !var.enforce_security_baseline || local.cluster_read_replica || (
+        local.engine == "memcached" &&
+        var.engine_version != null &&
+        var.transit_encryption_enabled == true &&
+        local.subnet_group_name != null &&
+        length(var.security_group_ids) > 0
+      )
+      error_message = "The security baseline requires provisioned clusters to use Memcached with TLS, an explicit subnet group, and explicit VPC security groups. Use a replication group or serverless cache for securely encrypted Redis OSS."
+    }
+
+    precondition {
+      condition = !var.enforce_resilience_baseline || local.cluster_read_replica || (
+        local.engine == "memcached" &&
+        var.num_cache_nodes != null && var.num_cache_nodes >= 2 &&
+        (
+          var.az_mode == "cross-az" ||
+          (var.preferred_availability_zones != null && length(distinct(var.preferred_availability_zones)) >= 2)
+        )
+      )
+      error_message = "The resilience baseline requires provisioned Memcached to use at least two nodes across Availability Zones; standalone Redis OSS cannot satisfy this baseline."
     }
   }
 }

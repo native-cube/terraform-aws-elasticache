@@ -26,13 +26,15 @@ module "primary" {
     aws = aws.primary
   }
 
-  name            = "${var.name}-primary"
-  deployment_type = "replication_group"
-  description     = "Primary Redis OSS replication group"
-  engine          = "redis"
-  engine_version  = var.engine_version
-  node_type       = var.node_type
-  port            = 6379
+  name                        = "${var.name}-primary"
+  deployment_type             = "replication_group"
+  enforce_security_baseline   = true
+  enforce_resilience_baseline = true
+  description                 = "Primary Redis OSS replication group"
+  engine                      = "redis"
+  engine_version              = var.engine_version
+  node_type                   = var.node_type
+  port                        = 6379
 
   num_cache_clusters         = 2
   automatic_failover_enabled = true
@@ -41,6 +43,9 @@ module "primary" {
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
   snapshot_retention_limit   = 7
+  final_snapshot_identifier  = "${var.name}-primary-final"
+  auth_token_wo              = var.auth_token_wo
+  auth_token_wo_version      = var.auth_token_wo_version
 
   create_subnet_group = true
   subnet_ids          = var.primary_subnet_ids
@@ -62,9 +67,13 @@ module "secondary" {
 
   name                        = "${var.name}-secondary"
   deployment_type             = "replication_group"
+  enforce_security_baseline   = true
+  enforce_resilience_baseline = true
   description                 = "Secondary Redis OSS replication group"
   global_replication_group_id = module.primary.global_replication_group_id
   num_cache_clusters          = 2
+  snapshot_retention_limit    = 7
+  final_snapshot_identifier   = "${var.name}-secondary-final"
 
   create_subnet_group = true
   subnet_ids          = var.secondary_subnet_ids

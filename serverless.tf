@@ -76,5 +76,23 @@ resource "aws_elasticache_serverless_cache" "main" {
       condition     = !var.create_subnet_group
       error_message = "Serverless caches use subnet_ids directly and do not support ElastiCache subnet groups."
     }
+
+    precondition {
+      condition = !var.enforce_security_baseline || (
+        var.major_engine_version != null &&
+        length(var.subnet_ids) > 0 &&
+        length(var.security_group_ids) > 0 &&
+        (local.engine == "memcached" || var.user_group_id != null)
+      )
+      error_message = "The security baseline requires an explicit major engine version, subnets, and VPC security groups; Redis OSS and Valkey serverless caches also require an RBAC user group."
+    }
+
+    precondition {
+      condition = !var.enforce_resilience_baseline || (
+        local.engine == "memcached" ||
+        (var.snapshot_retention_limit != null && var.snapshot_retention_limit >= 1)
+      )
+      error_message = "The resilience baseline requires retained automatic snapshots for Redis OSS and Valkey serverless caches. Serverless caches are Multi-AZ by design."
+    }
   }
 }

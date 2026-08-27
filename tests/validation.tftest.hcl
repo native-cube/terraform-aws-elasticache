@@ -145,3 +145,155 @@ run "global_primary_cannot_also_be_secondary" {
 
   expect_failures = [var.create_global_replication_group]
 }
+
+run "automatic_failover_requires_replica" {
+  command = plan
+
+  variables {
+    name                       = "invalid-failover"
+    deployment_type            = "replication_group"
+    engine                     = "redis"
+    node_type                  = "cache.t4g.small"
+    num_cache_clusters         = 1
+    automatic_failover_enabled = true
+  }
+
+  expect_failures = [aws_elasticache_replication_group.main[0]]
+}
+
+run "write_only_auth_requires_version" {
+  command = plan
+
+  variables {
+    name                       = "invalid-write-only-auth"
+    deployment_type            = "replication_group"
+    engine                     = "valkey"
+    node_type                  = "cache.t4g.small"
+    num_cache_clusters         = 1
+    transit_encryption_enabled = true
+    auth_token_wo              = "UnitTestWriteOnlyToken-2026!"
+  }
+
+  expect_failures = [aws_elasticache_replication_group.main[0]]
+}
+
+run "auth_rotation_requires_token" {
+  command = plan
+
+  variables {
+    name                       = "invalid-auth-rotation"
+    deployment_type            = "replication_group"
+    engine                     = "redis"
+    node_type                  = "cache.t4g.small"
+    num_cache_clusters         = 1
+    auth_token_update_strategy = "ROTATE"
+  }
+
+  expect_failures = [aws_elasticache_replication_group.main[0]]
+}
+
+run "transit_encryption_mode_requires_tls" {
+  command = plan
+
+  variables {
+    name                    = "invalid-transit-mode"
+    deployment_type         = "replication_group"
+    engine                  = "redis"
+    node_type               = "cache.t4g.small"
+    num_cache_clusters      = 1
+    transit_encryption_mode = "required"
+  }
+
+  expect_failures = [aws_elasticache_replication_group.main[0]]
+}
+
+run "global_datastore_rejects_durability" {
+  command = plan
+
+  variables {
+    name                            = "invalid-global-durability"
+    deployment_type                 = "replication_group"
+    engine                          = "valkey"
+    engine_version                  = "8.0"
+    node_type                       = "cache.r7g.large"
+    num_cache_clusters              = 2
+    automatic_failover_enabled      = true
+    durability                      = "sync"
+    create_global_replication_group = true
+  }
+
+  expect_failures = [aws_elasticache_replication_group.main[0]]
+}
+
+run "global_datastore_is_ipv4_only" {
+  command = plan
+
+  variables {
+    name                            = "invalid-global-ipv6"
+    deployment_type                 = "replication_group"
+    engine                          = "redis"
+    engine_version                  = "7.2"
+    node_type                       = "cache.r7g.large"
+    num_cache_clusters              = 2
+    automatic_failover_enabled      = true
+    network_type                    = "dual_stack"
+    create_global_replication_group = true
+  }
+
+  expect_failures = [aws_elasticache_replication_group.main[0]]
+}
+
+run "global_datastore_disables_automatic_minor_upgrades" {
+  command = plan
+
+  variables {
+    name                            = "invalid-global-auto-upgrade"
+    deployment_type                 = "replication_group"
+    engine                          = "redis"
+    engine_version                  = "7.2"
+    node_type                       = "cache.r7g.large"
+    num_cache_clusters              = 2
+    automatic_failover_enabled      = true
+    auto_minor_version_upgrade      = true
+    create_global_replication_group = true
+  }
+
+  expect_failures = [aws_elasticache_replication_group.main[0]]
+}
+
+run "security_profile_rejects_unauthenticated_replication_group" {
+  command = plan
+
+  variables {
+    name                       = "invalid-security-profile"
+    deployment_type            = "replication_group"
+    engine                     = "redis"
+    engine_version             = "7.2"
+    node_type                  = "cache.t4g.small"
+    num_cache_clusters         = 1
+    at_rest_encryption_enabled = true
+    transit_encryption_enabled = true
+    subnet_group_name          = "existing-private-subnets"
+    security_group_ids         = ["sg-0123456789abcdef0"]
+    enforce_security_baseline  = true
+  }
+
+  expect_failures = [aws_elasticache_replication_group.main[0]]
+}
+
+run "resilience_profile_rejects_single_node_replication_group" {
+  command = plan
+
+  variables {
+    name                        = "invalid-resilience-profile"
+    deployment_type             = "replication_group"
+    engine                      = "redis"
+    node_type                   = "cache.t4g.small"
+    num_cache_clusters          = 1
+    snapshot_retention_limit    = 7
+    final_snapshot_identifier   = "invalid-resilience-final"
+    enforce_resilience_baseline = true
+  }
+
+  expect_failures = [aws_elasticache_replication_group.main[0]]
+}

@@ -8,6 +8,24 @@ locals {
   create_parameter_group = var.create && var.create_parameter_group
   create_subnet_group    = var.create && var.create_subnet_group
   cluster_read_replica   = local.create_cluster && var.cluster_replication_group_id != null
+  global_deployment      = var.create_global_replication_group || var.global_replication_group_id != null
+
+  replication_group_has_replica = (
+    (var.num_cache_clusters != null && var.num_cache_clusters >= 2) ||
+    (
+      var.num_node_groups != null &&
+      (
+        (var.replicas_per_node_group != null && var.replicas_per_node_group >= 1) ||
+        (
+          length(var.node_group_configuration) == var.num_node_groups &&
+          alltrue([
+            for group in var.node_group_configuration :
+            group.replica_count != null && group.replica_count >= 1
+          ])
+        )
+      )
+    )
+  )
 
   engine = var.engine == null ? null : lower(var.engine)
 

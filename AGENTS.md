@@ -43,4 +43,4 @@ These instructions apply to the whole Terraform Amazon ElastiCache module.
 
 ## Verification
 
-Run `make check`, or run formatting, docs, initialization, validation, tests, provider schema coverage, and validation of every example separately. Run TFLint and Trivy for release checks. Never run `terraform apply` or `terraform destroy` unless explicitly requested and the target environment is confirmed.
+Run `make check`, or run formatting, docs, initialization, validation, tests, provider schema coverage, and validation of every example separately. Run TFLint, actionlint, ShellCheck, and Trivy for release checks. Never run `terraform apply` or `terraform destroy` unless explicitly requested and the target environment is confirmed.

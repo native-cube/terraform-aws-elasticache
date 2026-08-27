@@ -138,6 +138,40 @@ run "write_only_auth_token" {
   }
 }
 
+run "hardened_redis_rbac" {
+  command = plan
+
+  variables {
+    name                        = "unit-hardened-redis"
+    deployment_type             = "replication_group"
+    engine                      = "redis"
+    engine_version              = "7.2"
+    node_type                   = "cache.t4g.small"
+    num_cache_clusters          = 2
+    automatic_failover_enabled  = true
+    multi_az_enabled            = true
+    at_rest_encryption_enabled  = true
+    transit_encryption_enabled  = true
+    snapshot_retention_limit    = 7
+    final_snapshot_identifier   = "unit-hardened-redis-final"
+    subnet_group_name           = "existing-private-subnets"
+    security_group_ids          = ["sg-0123456789abcdef0"]
+    user_group_ids              = ["unit-redis-users"]
+    enforce_security_baseline   = true
+    enforce_resilience_baseline = true
+  }
+
+  assert {
+    condition = (
+      tobool(aws_elasticache_replication_group.main[0].at_rest_encryption_enabled) &&
+      aws_elasticache_replication_group.main[0].transit_encryption_enabled == true &&
+      aws_elasticache_replication_group.main[0].snapshot_retention_limit == 7 &&
+      length(aws_elasticache_replication_group.main[0].user_group_ids) == 1
+    )
+    error_message = "The opt-in security and resilience profiles must accept an encrypted, authenticated, recoverable Multi-AZ replication group."
+  }
+}
+
 run "global_replication_group_secondary" {
   command = plan
 

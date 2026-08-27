@@ -86,6 +86,11 @@ resource "aws_elasticache_replication_group" "main" {
     }
 
     precondition {
+      condition     = var.global_replication_group_id != null || local.engine != null
+      error_message = "engine is required unless global_replication_group_id is set."
+    }
+
+    precondition {
       condition     = var.global_replication_group_id != null || var.node_type != null
       error_message = "node_type is required unless global_replication_group_id is set."
     }
@@ -119,6 +124,11 @@ resource "aws_elasticache_replication_group" "main" {
     }
 
     precondition {
+      condition     = var.automatic_failover_enabled != true || local.replication_group_has_replica
+      error_message = "automatic_failover_enabled requires at least one replica: num_cache_clusters >= 2 or at least one replica in every shard."
+    }
+
+    precondition {
       condition     = var.kms_key_id == null || var.at_rest_encryption_enabled == true
       error_message = "kms_key_id requires at_rest_encryption_enabled."
     }
@@ -126,6 +136,23 @@ resource "aws_elasticache_replication_group" "main" {
     precondition {
       condition     = var.auth_token == null || var.auth_token_wo == null
       error_message = "Set auth_token or auth_token_wo, not both."
+    }
+
+    precondition {
+      condition     = (var.auth_token_wo == null) == (var.auth_token_wo_version == null)
+      error_message = "auth_token_wo and auth_token_wo_version must be set together."
+    }
+
+    precondition {
+      condition = (
+        var.auth_token_update_strategy == null ||
+        (
+          upper(var.auth_token_update_strategy) == "DELETE"
+          ? var.auth_token == null && var.auth_token_wo == null
+          : var.auth_token != null || var.auth_token_wo != null
+        )
+      )
+      error_message = "auth_token_update_strategy SET or ROTATE requires a token; DELETE requires both token inputs to be null."
     }
 
     precondition {
@@ -142,8 +169,61 @@ resource "aws_elasticache_replication_group" "main" {
     }
 
     precondition {
+      condition     = var.transit_encryption_mode == null || var.transit_encryption_enabled == true
+      error_message = "transit_encryption_mode requires transit_encryption_enabled."
+    }
+
+    precondition {
       condition     = var.global_replication_group_id == null || var.num_node_groups == null
       error_message = "num_node_groups cannot be set when global_replication_group_id is set."
+    }
+
+    precondition {
+      condition     = !local.global_deployment || var.durability == null
+      error_message = "ElastiCache global datastores do not support durability-enabled replication groups."
+    }
+
+    precondition {
+      condition = !local.global_deployment || (
+        (var.network_type == null || var.network_type == "ipv4") &&
+        (var.ip_discovery == null || var.ip_discovery == "ipv4")
+      )
+      error_message = "ElastiCache global datastores support IPv4 only."
+    }
+
+    precondition {
+      condition     = !local.global_deployment || var.auto_minor_version_upgrade != true
+      error_message = "ElastiCache disables automatic minor version upgrades for global datastore members; set auto_minor_version_upgrade to false or null."
+    }
+
+    precondition {
+      condition = !var.enforce_security_baseline || (
+        local.subnet_group_name != null &&
+        length(var.security_group_ids) > 0 &&
+        (
+          var.global_replication_group_id != null ||
+          (
+            var.engine_version != null &&
+            var.at_rest_encryption_enabled == true &&
+            var.transit_encryption_enabled == true &&
+            (var.auth_token != null || var.auth_token_wo != null || length(var.user_group_ids) > 0)
+          )
+        )
+      )
+      error_message = "The security baseline requires an explicit subnet group and VPC security groups plus at-rest encryption, TLS, and AUTH or RBAC for a primary replication group. Global secondaries inherit encryption and authentication."
+    }
+
+    precondition {
+      condition = !var.enforce_resilience_baseline || (
+        local.replication_group_has_replica &&
+        (
+          var.global_replication_group_id != null ||
+          (var.automatic_failover_enabled == true && var.multi_az_enabled == true)
+        ) &&
+        var.snapshot_retention_limit != null && var.snapshot_retention_limit >= 1 &&
+        var.final_snapshot_identifier != null
+      )
+      error_message = "The resilience baseline requires replicas, Multi-AZ automatic failover for primaries, retained automatic snapshots, and a final snapshot identifier."
     }
   }
 }

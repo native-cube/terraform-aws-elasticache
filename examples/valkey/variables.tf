@@ -25,6 +25,11 @@ variable "security_group_ids" {
   type        = set(string)
 }
 
+variable "user_group_id" {
+  description = "Existing Valkey RBAC user group ID configured for password or IAM authentication."
+  type        = string
+}
+
 variable "tags" {
   description = "Tags applied to example resources."
   type        = map(string)

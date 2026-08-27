@@ -27,5 +27,15 @@ resource "aws_elasticache_global_replication_group" "main" {
       condition     = local.global_engine == null || contains(["redis", "valkey"], local.global_engine)
       error_message = "Global replication groups support engine redis or valkey."
     }
+
+    precondition {
+      condition     = local.global_automatic_failover_enabled != true || local.replication_group_has_replica
+      error_message = "Global datastore intra-Region automatic failover requires at least one replica in every member shard."
+    }
+
+    precondition {
+      condition     = !var.enforce_security_baseline || local.global_engine_version != null
+      error_message = "The security baseline requires an explicit global datastore engine version."
+    }
   }
 }
