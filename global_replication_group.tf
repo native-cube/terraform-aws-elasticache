@@ -24,7 +24,7 @@ resource "aws_elasticache_global_replication_group" "main" {
 
   lifecycle {
     precondition {
-      condition     = local.global_engine == null || contains(["redis", "valkey"], local.global_engine)
+      condition     = local.global_engine == null ? true : contains(["redis", "valkey"], local.global_engine)
       error_message = "Global replication groups support engine redis or valkey."
     }
 

@@ -53,7 +53,7 @@ variable "engine" {
   default     = null
 
   validation {
-    condition     = var.engine == null || contains(["memcached", "redis", "valkey"], lower(var.engine))
+    condition     = var.engine == null ? true : contains(["memcached", "redis", "valkey"], lower(var.engine))
     error_message = "engine must be memcached, redis, valkey, or null for an inherited deployment."
   }
 }
@@ -76,7 +76,7 @@ variable "description" {
   default     = "Managed by Terraform"
 
   validation {
-    condition     = var.description != null && trimspace(var.description) != ""
+    condition     = var.description == null ? false : trimspace(var.description) != ""
     error_message = "description must not be empty."
   }
 }
@@ -93,7 +93,7 @@ variable "port" {
   default     = null
 
   validation {
-    condition     = var.port == null || (floor(var.port) == var.port && var.port >= 1 && var.port <= 65535)
+    condition     = var.port == null ? true : floor(var.port) == var.port && var.port >= 1 && var.port <= 65535
     error_message = "port must be an integer from 1 to 65535."
   }
 }
@@ -116,7 +116,7 @@ variable "maintenance_window" {
   default     = null
 
   validation {
-    condition = var.maintenance_window == null || can(regex(
+    condition = var.maintenance_window == null ? true : can(regex(
       "^(mon|tue|wed|thu|fri|sat|sun):([01][0-9]|2[0-3]):[0-5][0-9]-(mon|tue|wed|thu|fri|sat|sun):([01][0-9]|2[0-3]):[0-5][0-9]$",
       var.maintenance_window
     ))
@@ -130,7 +130,7 @@ variable "network_type" {
   default     = null
 
   validation {
-    condition     = var.network_type == null || contains(["ipv4", "ipv6", "dual_stack"], var.network_type)
+    condition     = var.network_type == null ? true : contains(["ipv4", "ipv6", "dual_stack"], var.network_type)
     error_message = "network_type must be ipv4, ipv6, dual_stack, or null."
   }
 }
@@ -141,7 +141,7 @@ variable "ip_discovery" {
   default     = null
 
   validation {
-    condition     = var.ip_discovery == null || contains(["ipv4", "ipv6"], var.ip_discovery)
+    condition     = var.ip_discovery == null ? true : contains(["ipv4", "ipv6"], var.ip_discovery)
     error_message = "ip_discovery must be ipv4, ipv6, or null."
   }
 }
@@ -152,7 +152,7 @@ variable "security_group_ids" {
   default     = []
 
   validation {
-    condition     = alltrue([for security_group_id in var.security_group_ids : security_group_id != null && trimspace(security_group_id) != ""])
+    condition     = alltrue([for security_group_id in var.security_group_ids : security_group_id == null ? false : trimspace(security_group_id) != ""])
     error_message = "security_group_ids must contain only non-empty security group IDs."
   }
 }
@@ -163,7 +163,7 @@ variable "security_group_names" {
   default     = []
 
   validation {
-    condition     = alltrue([for security_group_name in var.security_group_names : security_group_name != null && trimspace(security_group_name) != ""])
+    condition     = alltrue([for security_group_name in var.security_group_names : security_group_name == null ? false : trimspace(security_group_name) != ""])
     error_message = "security_group_names must contain only non-empty security group names."
   }
 }
@@ -180,7 +180,7 @@ variable "final_snapshot_identifier" {
   default     = null
 
   validation {
-    condition     = var.final_snapshot_identifier == null || trimspace(var.final_snapshot_identifier) != ""
+    condition     = var.final_snapshot_identifier == null ? true : trimspace(var.final_snapshot_identifier) != ""
     error_message = "final_snapshot_identifier must be null or a non-empty identifier."
   }
 }
@@ -191,7 +191,7 @@ variable "snapshot_arns" {
   default     = []
 
   validation {
-    condition     = alltrue([for snapshot_arn in var.snapshot_arns : snapshot_arn != null && trimspace(snapshot_arn) != ""])
+    condition     = alltrue([for snapshot_arn in var.snapshot_arns : snapshot_arn == null ? false : trimspace(snapshot_arn) != ""])
     error_message = "snapshot_arns must contain only non-empty ARNs."
   }
 }
@@ -202,7 +202,7 @@ variable "snapshot_name" {
   default     = null
 
   validation {
-    condition     = var.snapshot_name == null || trimspace(var.snapshot_name) != ""
+    condition     = var.snapshot_name == null ? true : trimspace(var.snapshot_name) != ""
     error_message = "snapshot_name must be null or a non-empty name."
   }
 }
@@ -213,7 +213,7 @@ variable "snapshot_retention_limit" {
   default     = null
 
   validation {
-    condition     = var.snapshot_retention_limit == null || (floor(var.snapshot_retention_limit) == var.snapshot_retention_limit && var.snapshot_retention_limit >= 0 && var.snapshot_retention_limit <= 35)
+    condition     = var.snapshot_retention_limit == null ? true : floor(var.snapshot_retention_limit) == var.snapshot_retention_limit && var.snapshot_retention_limit >= 0 && var.snapshot_retention_limit <= 35
     error_message = "snapshot_retention_limit must be an integer from 0 to 35 or null."
   }
 }
@@ -224,7 +224,7 @@ variable "snapshot_window" {
   default     = null
 
   validation {
-    condition = var.snapshot_window == null || can(regex(
+    condition = var.snapshot_window == null ? true : can(regex(
       "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$",
       var.snapshot_window
     ))
@@ -248,10 +248,13 @@ variable "log_delivery_configuration" {
       length(distinct([for configuration in var.log_delivery_configuration : configuration.log_type])) == length(var.log_delivery_configuration) &&
       alltrue([
         for configuration in var.log_delivery_configuration :
-        configuration.destination != null && trimspace(configuration.destination) != "" &&
-        contains(["cloudwatch-logs", "kinesis-firehose"], configuration.destination_type) &&
-        contains(["json", "text"], configuration.log_format) &&
-        contains(["engine-log", "slow-log"], configuration.log_type)
+        try(
+          trimspace(configuration.destination) != "" &&
+          contains(["cloudwatch-logs", "kinesis-firehose"], configuration.destination_type) &&
+          contains(["json", "text"], configuration.log_format) &&
+          contains(["engine-log", "slow-log"], configuration.log_type),
+          false
+        )
       ])
     )
     error_message = "log_delivery_configuration supports at most one engine-log and one slow-log using cloudwatch-logs or kinesis-firehose and json or text format."
@@ -264,7 +267,7 @@ variable "num_cache_nodes" {
   default     = null
 
   validation {
-    condition     = var.num_cache_nodes == null || (floor(var.num_cache_nodes) == var.num_cache_nodes && var.num_cache_nodes >= 1)
+    condition     = var.num_cache_nodes == null ? true : floor(var.num_cache_nodes) == var.num_cache_nodes && var.num_cache_nodes >= 1
     error_message = "num_cache_nodes must be a positive integer or null."
   }
 }
@@ -281,7 +284,7 @@ variable "az_mode" {
   default     = null
 
   validation {
-    condition     = var.az_mode == null || contains(["single-az", "cross-az"], var.az_mode)
+    condition     = var.az_mode == null ? true : contains(["single-az", "cross-az"], var.az_mode)
     error_message = "az_mode must be single-az, cross-az, or null."
   }
 }
@@ -298,7 +301,7 @@ variable "outpost_mode" {
   default     = null
 
   validation {
-    condition     = var.outpost_mode == null || contains(["single-outpost", "cross-outpost"], var.outpost_mode)
+    condition     = var.outpost_mode == null ? true : contains(["single-outpost", "cross-outpost"], var.outpost_mode)
     error_message = "outpost_mode must be single-outpost, cross-outpost, or null."
   }
 }
@@ -346,7 +349,7 @@ variable "auth_token_update_strategy" {
   default     = null
 
   validation {
-    condition     = var.auth_token_update_strategy == null || contains(["DELETE", "ROTATE", "SET"], upper(var.auth_token_update_strategy))
+    condition     = var.auth_token_update_strategy == null ? true : contains(["DELETE", "ROTATE", "SET"], upper(var.auth_token_update_strategy))
     error_message = "auth_token_update_strategy must be SET, ROTATE, DELETE, or null."
   }
 }
@@ -365,7 +368,7 @@ variable "auth_token_wo_version" {
   default     = null
 
   validation {
-    condition     = var.auth_token_wo_version == null || (floor(var.auth_token_wo_version) == var.auth_token_wo_version && var.auth_token_wo_version >= 1)
+    condition     = var.auth_token_wo_version == null ? true : floor(var.auth_token_wo_version) == var.auth_token_wo_version && var.auth_token_wo_version >= 1
     error_message = "auth_token_wo_version must be a positive integer or null."
   }
 }
@@ -388,7 +391,7 @@ variable "cluster_mode" {
   default     = null
 
   validation {
-    condition     = var.cluster_mode == null || contains(["compatible", "disabled", "enabled"], var.cluster_mode)
+    condition     = var.cluster_mode == null ? true : contains(["compatible", "disabled", "enabled"], var.cluster_mode)
     error_message = "cluster_mode must be disabled, compatible, enabled, or null."
   }
 }
@@ -405,7 +408,7 @@ variable "durability" {
   default     = null
 
   validation {
-    condition     = var.durability == null || contains(["async", "default", "disabled", "sync"], var.durability)
+    condition     = var.durability == null ? true : contains(["async", "default", "disabled", "sync"], var.durability)
     error_message = "durability must be default, async, sync, disabled, or null."
   }
 }
@@ -416,7 +419,7 @@ variable "global_replication_group_id" {
   default     = null
 
   validation {
-    condition     = var.global_replication_group_id == null || trimspace(var.global_replication_group_id) != ""
+    condition     = var.global_replication_group_id == null ? true : trimspace(var.global_replication_group_id) != ""
     error_message = "global_replication_group_id must be null or a non-empty ID."
   }
 }
@@ -441,7 +444,7 @@ variable "global_replication_group_id_suffix" {
   default     = null
 
   validation {
-    condition = var.global_replication_group_id_suffix == null || (
+    condition = var.global_replication_group_id_suffix == null ? true : (
       can(regex("^[a-z][a-z0-9-]{0,39}$", var.global_replication_group_id_suffix)) &&
       !endswith(var.global_replication_group_id_suffix, "-") &&
       !strcontains(var.global_replication_group_id_suffix, "--")
@@ -456,7 +459,7 @@ variable "global_replication_group_description" {
   default     = null
 
   validation {
-    condition     = var.global_replication_group_description == null || trimspace(var.global_replication_group_description) != ""
+    condition     = var.global_replication_group_description == null ? true : trimspace(var.global_replication_group_description) != ""
     error_message = "global_replication_group_description must be null or non-empty."
   }
 }
@@ -479,7 +482,7 @@ variable "global_engine" {
   default     = null
 
   validation {
-    condition     = var.global_engine == null || contains(["redis", "valkey"], lower(var.global_engine))
+    condition     = var.global_engine == null ? true : contains(["redis", "valkey"], lower(var.global_engine))
     error_message = "global_engine must be redis, valkey, or null."
   }
 }
@@ -496,7 +499,7 @@ variable "global_num_node_groups" {
   default     = null
 
   validation {
-    condition     = var.global_num_node_groups == null || (floor(var.global_num_node_groups) == var.global_num_node_groups && var.global_num_node_groups >= 1)
+    condition     = var.global_num_node_groups == null ? true : floor(var.global_num_node_groups) == var.global_num_node_groups && var.global_num_node_groups >= 1
     error_message = "global_num_node_groups must be a positive integer or null."
   }
 }
@@ -517,9 +520,9 @@ variable "global_replication_group_timeouts" {
   default = null
 
   validation {
-    condition = var.global_replication_group_timeouts == null || alltrue([
+    condition = var.global_replication_group_timeouts == null ? true : alltrue([
       for timeout in values(var.global_replication_group_timeouts) :
-      timeout == null || can(regex("^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$", timeout))
+      timeout == null ? true : can(regex("^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$", timeout))
     ])
     error_message = "global_replication_group_timeouts values must be valid Terraform duration strings such as 30m or 1h30m."
   }
@@ -531,7 +534,7 @@ variable "num_cache_clusters" {
   default     = null
 
   validation {
-    condition     = var.num_cache_clusters == null || (floor(var.num_cache_clusters) == var.num_cache_clusters && var.num_cache_clusters >= 1)
+    condition     = var.num_cache_clusters == null ? true : floor(var.num_cache_clusters) == var.num_cache_clusters && var.num_cache_clusters >= 1
     error_message = "num_cache_clusters must be a positive integer or null."
   }
 }
@@ -542,7 +545,7 @@ variable "num_node_groups" {
   default     = null
 
   validation {
-    condition     = var.num_node_groups == null || (floor(var.num_node_groups) == var.num_node_groups && var.num_node_groups >= 1)
+    condition     = var.num_node_groups == null ? true : floor(var.num_node_groups) == var.num_node_groups && var.num_node_groups >= 1
     error_message = "num_node_groups must be a positive integer or null."
   }
 }
@@ -553,7 +556,7 @@ variable "replicas_per_node_group" {
   default     = null
 
   validation {
-    condition     = var.replicas_per_node_group == null || (floor(var.replicas_per_node_group) == var.replicas_per_node_group && var.replicas_per_node_group >= 0)
+    condition     = var.replicas_per_node_group == null ? true : floor(var.replicas_per_node_group) == var.replicas_per_node_group && var.replicas_per_node_group >= 0
     error_message = "replicas_per_node_group must be a non-negative integer or null."
   }
 }
@@ -580,7 +583,7 @@ variable "node_group_configuration" {
   validation {
     condition = alltrue([
       for group in var.node_group_configuration :
-      group.replica_count == null || (floor(group.replica_count) == group.replica_count && group.replica_count >= 0)
+      group.replica_count == null ? true : floor(group.replica_count) == group.replica_count && group.replica_count >= 0
     ])
     error_message = "Each node_group_configuration replica_count must be a non-negative integer or null."
   }
@@ -592,7 +595,7 @@ variable "transit_encryption_mode" {
   default     = null
 
   validation {
-    condition     = var.transit_encryption_mode == null || contains(["preferred", "required"], var.transit_encryption_mode)
+    condition     = var.transit_encryption_mode == null ? true : contains(["preferred", "required"], var.transit_encryption_mode)
     error_message = "transit_encryption_mode must be preferred, required, or null."
   }
 }
@@ -603,7 +606,7 @@ variable "user_group_ids" {
   default     = []
 
   validation {
-    condition     = length(var.user_group_ids) <= 1 && alltrue([for user_group_id in var.user_group_ids : user_group_id != null && trimspace(user_group_id) != ""])
+    condition     = length(var.user_group_ids) <= 1 && alltrue([for user_group_id in var.user_group_ids : user_group_id == null ? false : trimspace(user_group_id) != ""])
     error_message = "user_group_ids supports at most one non-empty user group ID."
   }
 }
@@ -624,23 +627,23 @@ variable "cache_usage_limits" {
   default = null
 
   validation {
-    condition = var.cache_usage_limits == null || (
-      var.cache_usage_limits.data_storage == null || (
+    condition = var.cache_usage_limits == null ? true : (
+      var.cache_usage_limits.data_storage == null ? true : (
         var.cache_usage_limits.data_storage.unit == "GB" &&
-        (var.cache_usage_limits.data_storage.minimum == null || (var.cache_usage_limits.data_storage.minimum >= 1 && var.cache_usage_limits.data_storage.minimum <= 5000)) &&
-        (var.cache_usage_limits.data_storage.maximum == null || (var.cache_usage_limits.data_storage.maximum >= 1 && var.cache_usage_limits.data_storage.maximum <= 5000)) &&
-        (var.cache_usage_limits.data_storage.minimum == null || var.cache_usage_limits.data_storage.maximum == null || var.cache_usage_limits.data_storage.minimum <= var.cache_usage_limits.data_storage.maximum)
+        (var.cache_usage_limits.data_storage.minimum == null ? true : var.cache_usage_limits.data_storage.minimum >= 1 && var.cache_usage_limits.data_storage.minimum <= 5000) &&
+        (var.cache_usage_limits.data_storage.maximum == null ? true : var.cache_usage_limits.data_storage.maximum >= 1 && var.cache_usage_limits.data_storage.maximum <= 5000) &&
+        (var.cache_usage_limits.data_storage.minimum == null || var.cache_usage_limits.data_storage.maximum == null ? true : var.cache_usage_limits.data_storage.minimum <= var.cache_usage_limits.data_storage.maximum)
       )
     )
     error_message = "Serverless data storage minimum and maximum must be 1-5000 GB, with minimum not exceeding maximum."
   }
 
   validation {
-    condition = var.cache_usage_limits == null || (
-      var.cache_usage_limits.ecpu_per_second == null || (
-        (var.cache_usage_limits.ecpu_per_second.minimum == null || (var.cache_usage_limits.ecpu_per_second.minimum >= 1000 && var.cache_usage_limits.ecpu_per_second.minimum <= 15000000)) &&
-        (var.cache_usage_limits.ecpu_per_second.maximum == null || (var.cache_usage_limits.ecpu_per_second.maximum >= 1000 && var.cache_usage_limits.ecpu_per_second.maximum <= 15000000)) &&
-        (var.cache_usage_limits.ecpu_per_second.minimum == null || var.cache_usage_limits.ecpu_per_second.maximum == null || var.cache_usage_limits.ecpu_per_second.minimum <= var.cache_usage_limits.ecpu_per_second.maximum)
+    condition = var.cache_usage_limits == null ? true : (
+      var.cache_usage_limits.ecpu_per_second == null ? true : (
+        (var.cache_usage_limits.ecpu_per_second.minimum == null ? true : var.cache_usage_limits.ecpu_per_second.minimum >= 1000 && var.cache_usage_limits.ecpu_per_second.minimum <= 15000000) &&
+        (var.cache_usage_limits.ecpu_per_second.maximum == null ? true : var.cache_usage_limits.ecpu_per_second.maximum >= 1000 && var.cache_usage_limits.ecpu_per_second.maximum <= 15000000) &&
+        (var.cache_usage_limits.ecpu_per_second.minimum == null || var.cache_usage_limits.ecpu_per_second.maximum == null ? true : var.cache_usage_limits.ecpu_per_second.minimum <= var.cache_usage_limits.ecpu_per_second.maximum)
       )
     )
     error_message = "Serverless ECPU minimum and maximum must be 1000-15000000, with minimum not exceeding maximum."
@@ -653,7 +656,7 @@ variable "daily_snapshot_time" {
   default     = null
 
   validation {
-    condition     = var.daily_snapshot_time == null || can(regex("^([01][0-9]|2[0-3]):[0-5][0-9]$", var.daily_snapshot_time))
+    condition     = var.daily_snapshot_time == null ? true : can(regex("^([01][0-9]|2[0-3]):[0-5][0-9]$", var.daily_snapshot_time))
     error_message = "daily_snapshot_time must use the UTC format hh:mm."
   }
 }
@@ -664,7 +667,7 @@ variable "snapshot_arns_to_restore" {
   default     = []
 
   validation {
-    condition     = alltrue([for snapshot_arn in var.snapshot_arns_to_restore : snapshot_arn != null && trimspace(snapshot_arn) != ""])
+    condition     = alltrue([for snapshot_arn in var.snapshot_arns_to_restore : snapshot_arn == null ? false : trimspace(snapshot_arn) != ""])
     error_message = "snapshot_arns_to_restore must contain only non-empty ARNs."
   }
 }
@@ -675,7 +678,7 @@ variable "user_group_id" {
   default     = null
 
   validation {
-    condition     = var.user_group_id == null || trimspace(var.user_group_id) != ""
+    condition     = var.user_group_id == null ? true : trimspace(var.user_group_id) != ""
     error_message = "user_group_id must be null or a non-empty ID."
   }
 }
@@ -748,7 +751,7 @@ variable "subnet_ids" {
   default     = []
 
   validation {
-    condition     = alltrue([for subnet_id in var.subnet_ids : subnet_id != null && trimspace(subnet_id) != ""])
+    condition     = alltrue([for subnet_id in var.subnet_ids : subnet_id == null ? false : trimspace(subnet_id) != ""])
     error_message = "subnet_ids must contain only non-empty subnet IDs."
   }
 }
@@ -769,9 +772,9 @@ variable "timeouts" {
   default = null
 
   validation {
-    condition = var.timeouts == null || alltrue([
+    condition = var.timeouts == null ? true : alltrue([
       for timeout in values(var.timeouts) :
-      timeout == null || can(regex("^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$", timeout))
+      timeout == null ? true : can(regex("^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$", timeout))
     ])
     error_message = "timeouts values must be valid Terraform duration strings such as 30m or 1h30m."
   }

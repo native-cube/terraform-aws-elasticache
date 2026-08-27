@@ -18,7 +18,7 @@ resource "aws_elasticache_parameter_group" "main" {
 
   lifecycle {
     precondition {
-      condition     = var.parameter_group_family != null && trimspace(var.parameter_group_family) != ""
+      condition     = var.parameter_group_family == null ? false : trimspace(var.parameter_group_family) != ""
       error_message = "parameter_group_family is required when create_parameter_group is true."
     }
   }

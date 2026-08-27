@@ -11,16 +11,15 @@ locals {
   global_deployment      = var.create_global_replication_group || var.global_replication_group_id != null
 
   replication_group_has_replica = (
-    (var.num_cache_clusters != null && var.num_cache_clusters >= 2) ||
+    (var.num_cache_clusters == null ? false : var.num_cache_clusters >= 2) ||
     (
-      var.num_node_groups != null &&
-      (
-        (var.replicas_per_node_group != null && var.replicas_per_node_group >= 1) ||
+      var.num_node_groups == null ? false : (
+        (var.replicas_per_node_group == null ? false : var.replicas_per_node_group >= 1) ||
         (
           length(var.node_group_configuration) == var.num_node_groups &&
           alltrue([
             for group in var.node_group_configuration :
-            group.replica_count != null && group.replica_count >= 1
+            group.replica_count == null ? false : group.replica_count >= 1
           ])
         )
       )

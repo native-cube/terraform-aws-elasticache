@@ -53,7 +53,7 @@ resource "aws_elasticache_serverless_cache" "main" {
 
   lifecycle {
     precondition {
-      condition     = local.engine != null && contains(["memcached", "redis", "valkey"], local.engine)
+      condition     = local.engine == null ? false : contains(["memcached", "redis", "valkey"], local.engine)
       error_message = "A serverless cache requires engine memcached, redis, or valkey."
     }
 
@@ -78,7 +78,7 @@ resource "aws_elasticache_serverless_cache" "main" {
     }
 
     precondition {
-      condition = !var.enforce_security_baseline || (
+      condition = !var.enforce_security_baseline ? true : (
         var.major_engine_version != null &&
         length(var.subnet_ids) > 0 &&
         length(var.security_group_ids) > 0 &&
@@ -88,9 +88,9 @@ resource "aws_elasticache_serverless_cache" "main" {
     }
 
     precondition {
-      condition = !var.enforce_resilience_baseline || (
+      condition = !var.enforce_resilience_baseline ? true : (
         local.engine == "memcached" ||
-        (var.snapshot_retention_limit != null && var.snapshot_retention_limit >= 1)
+        (var.snapshot_retention_limit == null ? false : var.snapshot_retention_limit >= 1)
       )
       error_message = "The resilience baseline requires retained automatic snapshots for Redis OSS and Valkey serverless caches. Serverless caches are Multi-AZ by design."
     }

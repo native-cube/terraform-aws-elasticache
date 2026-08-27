@@ -54,8 +54,8 @@ resource "aws_elasticache_cluster" "main" {
 
   lifecycle {
     precondition {
-      condition = local.cluster_read_replica || (
-        contains(["memcached", "redis"], local.engine) &&
+      condition = local.cluster_read_replica ? true : (
+        (local.engine == null ? false : contains(["memcached", "redis"], local.engine)) &&
         var.node_type != null &&
         var.num_cache_nodes != null &&
         local.parameter_group_name != null
@@ -69,7 +69,7 @@ resource "aws_elasticache_cluster" "main" {
     }
 
     precondition {
-      condition     = local.engine != "memcached" || var.num_cache_nodes == null || var.num_cache_nodes <= 40
+      condition     = local.engine != "memcached" || (var.num_cache_nodes == null ? true : var.num_cache_nodes <= 40)
       error_message = "A Memcached cluster supports between 1 and 40 cache nodes."
     }
 
@@ -79,7 +79,7 @@ resource "aws_elasticache_cluster" "main" {
     }
 
     precondition {
-      condition     = var.preferred_availability_zones == null || var.num_cache_nodes == null || length(var.preferred_availability_zones) == var.num_cache_nodes
+      condition     = var.preferred_availability_zones == null ? true : (var.num_cache_nodes == null ? true : length(var.preferred_availability_zones) == var.num_cache_nodes)
       error_message = "preferred_availability_zones must contain one entry per cache node."
     }
 
@@ -121,7 +121,7 @@ resource "aws_elasticache_cluster" "main" {
     }
 
     precondition {
-      condition = !var.enforce_security_baseline || local.cluster_read_replica || (
+      condition = !var.enforce_security_baseline ? true : local.cluster_read_replica || (
         local.engine == "memcached" &&
         var.engine_version != null &&
         var.transit_encryption_enabled == true &&
@@ -132,12 +132,12 @@ resource "aws_elasticache_cluster" "main" {
     }
 
     precondition {
-      condition = !var.enforce_resilience_baseline || local.cluster_read_replica || (
+      condition = !var.enforce_resilience_baseline ? true : local.cluster_read_replica || (
         local.engine == "memcached" &&
-        var.num_cache_nodes != null && var.num_cache_nodes >= 2 &&
+        (var.num_cache_nodes == null ? false : var.num_cache_nodes >= 2) &&
         (
           var.az_mode == "cross-az" ||
-          (var.preferred_availability_zones != null && length(distinct(var.preferred_availability_zones)) >= 2)
+          (var.preferred_availability_zones == null ? false : length(distinct(var.preferred_availability_zones)) >= 2)
         )
       )
       error_message = "The resilience baseline requires provisioned Memcached to use at least two nodes across Availability Zones; standalone Redis OSS cannot satisfy this baseline."

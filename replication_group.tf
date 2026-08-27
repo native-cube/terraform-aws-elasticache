@@ -81,7 +81,7 @@ resource "aws_elasticache_replication_group" "main" {
 
   lifecycle {
     precondition {
-      condition     = local.engine == null || contains(["redis", "valkey"], local.engine)
+      condition     = local.engine == null ? true : contains(["redis", "valkey"], local.engine)
       error_message = "Replication groups support engine redis or valkey; omit engine only when joining a global replication group."
     }
 
@@ -144,13 +144,10 @@ resource "aws_elasticache_replication_group" "main" {
     }
 
     precondition {
-      condition = (
-        var.auth_token_update_strategy == null ||
-        (
-          upper(var.auth_token_update_strategy) == "DELETE"
-          ? var.auth_token == null && var.auth_token_wo == null
-          : var.auth_token != null || var.auth_token_wo != null
-        )
+      condition = var.auth_token_update_strategy == null ? true : (
+        upper(var.auth_token_update_strategy) == "DELETE"
+        ? var.auth_token == null && var.auth_token_wo == null
+        : var.auth_token != null || var.auth_token_wo != null
       )
       error_message = "auth_token_update_strategy SET or ROTATE requires a token; DELETE requires both token inputs to be null."
     }
@@ -197,7 +194,7 @@ resource "aws_elasticache_replication_group" "main" {
     }
 
     precondition {
-      condition = !var.enforce_security_baseline || (
+      condition = !var.enforce_security_baseline ? true : (
         local.subnet_group_name != null &&
         length(var.security_group_ids) > 0 &&
         (
@@ -214,13 +211,13 @@ resource "aws_elasticache_replication_group" "main" {
     }
 
     precondition {
-      condition = !var.enforce_resilience_baseline || (
+      condition = !var.enforce_resilience_baseline ? true : (
         local.replication_group_has_replica &&
         (
           var.global_replication_group_id != null ||
           (var.automatic_failover_enabled == true && var.multi_az_enabled == true)
         ) &&
-        var.snapshot_retention_limit != null && var.snapshot_retention_limit >= 1 &&
+        (var.snapshot_retention_limit == null ? false : var.snapshot_retention_limit >= 1) &&
         var.final_snapshot_identifier != null
       )
       error_message = "The resilience baseline requires replicas, Multi-AZ automatic failover for primaries, retained automatic snapshots, and a final snapshot identifier."
