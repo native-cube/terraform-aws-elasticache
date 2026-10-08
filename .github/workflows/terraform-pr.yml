@@ -65,7 +65,7 @@ jobs:
         run: scripts/terraform-docs.sh --check
 
       - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@v6.3.0
+        uses: terraform-linters/setup-tflint@v6.3.2
         with:
           tflint_version: v0.64.0
           cache: true
